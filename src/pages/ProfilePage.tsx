@@ -1,0 +1,5 @@
+import type { Profile } from '../lib/types'
+import { ProfileForm } from '../components/profile/ProfileForm'
+import { ProfileSummary } from '../components/profile/ProfileSummary'
+import { Card, CardHeader } from '../components/ui/Card'
+export function ProfilePage({ draft, onChange, onSave, firstVisit }: { draft: Profile; onChange: (p: Profile) => void; onSave: () => void; firstVisit: boolean }) { return <div className="grid gap-5 xl:grid-cols-[1fr_300px]"><Card><CardHeader eyebrow={firstVisit ? 'Крок 1 із 4' : 'Налаштування'} title={firstVisit ? 'Створимо твій робочий профіль' : 'Вихідні дані'}/><div className="p-5"><ProfileForm value={draft} onChange={onChange} onSave={onSave}/></div></Card><div className="space-y-4"><ProfileSummary profile={draft}/><div className="rounded-2xl border border-amber-300/10 bg-amber-300/[.05] p-4 text-xs leading-relaxed text-amber-100/70">Розрахунки Forma — практичний орієнтир, а не медична рекомендація. За наявності розладів харчування чи захворювань звернися до лікаря.</div></div></div> }

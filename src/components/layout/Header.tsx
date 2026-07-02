@@ -1,0 +1,6 @@
+import { Menu, Plus } from 'lucide-react'
+import { Button } from '../ui/Button'
+import type { Page } from '../../lib/types'
+
+const titles: Record<Page, [string, string]> = { dashboard: ['Твоя форма сьогодні', 'Один екран — головні орієнтири на день.'], profile: ['Профіль', 'Вихідні дані для точного розрахунку.'], nutrition: ['Харчування', 'КБЖУ, якість продуктів і готовий план.'], training: ['Тренування', 'Програма під твій досвід і доступний час.'], progress: ['Прогрес', 'Фіксуй факти. Коригуй план без паніки.'] }
+export function Header({ page, onMenu, onCheckin }: { page: Page; onMenu: () => void; onCheckin: () => void }) { return <header className="flex min-h-20 items-center justify-between gap-4 border-b border-white/[.07] px-4 sm:px-7"><div className="flex items-center gap-3"><button className="rounded-lg p-2 text-zinc-400 hover:bg-white/5 lg:hidden" onClick={onMenu}><Menu size={20}/></button><div><h1 className="text-lg font-semibold text-white sm:text-xl">{titles[page][0]}</h1><p className="hidden text-xs text-zinc-500 sm:block">{titles[page][1]}</p></div></div><Button onClick={onCheckin} className="px-3 sm:px-4"><Plus size={16}/><span className="hidden sm:inline">Новий check-in</span><span className="sm:hidden">Check-in</span></Button></header> }

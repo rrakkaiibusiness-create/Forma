@@ -1,0 +1,2 @@
+import type { SelectHTMLAttributes } from 'react'
+export function Select({ label, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) { return <label className="block"><span className="mb-2 block text-sm font-medium text-zinc-300">{label}</span><select className="h-11 w-full rounded-xl border border-white/10 bg-[#1a1e1b] px-3.5 text-sm text-white outline-none focus:border-lime/60" {...props}>{children}</select></label> }
