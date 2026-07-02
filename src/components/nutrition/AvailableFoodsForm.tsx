@@ -1,11 +1,11 @@
 import { Check, PackageOpen, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import type { AvailableFood, AvailableFoodCategory } from '../../lib/types'
-import { BASIC_FOODS, createAvailableFood, foodCategoryLabels, POPULAR_FOODS } from '../../lib/availableFoods'
+import type { AvailableFood, AvailableFoodCategory, CustomFood } from '../../lib/types'
+import { BASIC_FOODS, createAvailableFood, customFoodToAvailableFood, foodCategoryLabels, POPULAR_FOODS } from '../../lib/availableFoods'
 import { Button } from '../ui/Button'
 import { Card, CardHeader } from '../ui/Card'
 
-export function AvailableFoodsForm({ foods, onChange, onGenerate, pantryActive }: { foods: AvailableFood[]; onChange: (foods: AvailableFood[]) => void; onGenerate: () => void; pantryActive: boolean }) {
+export function AvailableFoodsForm({ foods, customFoods, onChange, onGenerate, pantryActive }: { foods: AvailableFood[]; customFoods: CustomFood[]; onChange: (foods: AvailableFood[]) => void; onGenerate: () => void; pantryActive: boolean }) {
   const [name, setName] = useState('')
   const [category, setCategory] = useState<AvailableFoodCategory>('other')
   const add = (food: AvailableFood | null) => {
@@ -27,6 +27,8 @@ export function AvailableFoodsForm({ foods, onChange, onGenerate, pantryActive }
       </form>
 
       <div><p className="mb-2 text-xs font-medium text-zinc-500">Швидкий вибір</p><div className="flex flex-wrap gap-2">{POPULAR_FOODS.map(food => { const selected = foods.some(item => item.id === food.id); return <button type="button" aria-pressed={selected} key={food.id} onClick={() => togglePopular(food)} className={`rounded-xl border px-3 py-2 text-xs transition ${selected ? 'border-lime/25 bg-lime/[.08] text-lime' : 'border-white/[.08] bg-white/[.025] text-zinc-400 hover:text-white'}`}>{selected && <Check size={12} className="mr-1.5 inline"/>}{food.name}</button> })}</div></div>
+
+      {customFoods.length > 0 && <div><p className="mb-2 text-xs font-medium text-zinc-500">Мої продукти</p><div className="flex flex-wrap gap-2">{customFoods.map(item => { const food = customFoodToAvailableFood(item); const selected = foods.some(current => current.foodId === item.id); return <button type="button" aria-pressed={selected} key={item.id} onClick={() => selected ? onChange(foods.filter(current => current.foodId !== item.id)) : add(food)} className={`rounded-xl border px-3 py-2 text-xs transition ${selected ? 'border-lime/25 bg-lime/[.08] text-lime' : 'border-white/[.08] bg-white/[.025] text-zinc-400 hover:text-white'}`}>{selected && <Check size={12} className="mr-1.5 inline"/>}{item.name}</button> })}</div></div>}
 
       <div className="rounded-2xl bg-white/[.025] p-3.5"><div className="mb-3 flex items-center justify-between"><p className="flex items-center gap-2 text-xs font-semibold text-white"><PackageOpen size={15} className="text-lime"/>Зараз вдома · {foods.length}</p>{foods.length > 0 && <button type="button" onClick={() => onChange([])} className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-rose-300"><Trash2 size={13}/>Очистити список</button>}</div>{foods.length ? <div className="flex flex-wrap gap-2">{foods.map(food => <span key={food.id} className="inline-flex items-center gap-2 rounded-xl border border-white/[.08] bg-[#181b19] py-1.5 pl-3 pr-1.5 text-xs text-zinc-300"><span>{food.name}</span><span className="text-[10px] text-zinc-600">{foodCategoryLabels[food.category]}</span><button type="button" aria-label={`Видалити ${food.name}`} onClick={() => remove(food.id)} className="grid size-6 place-items-center rounded-lg text-zinc-600 hover:bg-white/[.06] hover:text-white"><X size={13}/></button></span>)}</div> : <p className="py-2 text-xs text-zinc-600">Список порожній — поки працює стандартна генерація Forma.</p>}</div>
 

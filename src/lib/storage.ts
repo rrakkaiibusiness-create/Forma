@@ -1,9 +1,10 @@
-import type { AvailableFood, AvailableFoodCategory, NutritionPlan, Profile, ProgressLog, QualityCriteria } from './types'
+import type { AvailableFood, AvailableFoodCategory, CustomFood, CustomFoodDraft, FoodCategory, FoodUnit, NutritionPlan, Profile, ProgressLog, QualityCriteria } from './types'
 import { DEFAULT_PROFILE } from './constants'
 import { defaultQuality } from './foodQuality'
 import { createAvailableFood } from './availableFoods'
+import { FOOD_DATABASE, customFoodToFoodItem, type FoodItem } from './foodDatabase'
 
-const keys = { profile: 'forma.profile', logs: 'forma.logs', nutrition: 'forma.nutrition', quality: 'forma.quality', meals: 'forma.meals.variant', availableFoods: 'forma.availableFoods' }
+const keys = { profile: 'forma.profile', logs: 'forma.logs', nutrition: 'forma.nutrition', quality: 'forma.quality', meals: 'forma.meals.variant', availableFoods: 'forma.availableFoods', customFoods: 'forma.customFoods' }
 
 function readUnknown(key: string): unknown {
   try {
@@ -40,6 +41,19 @@ export function getProfile(): Profile | null {
     restrictions: typeof raw.restrictions === 'string' ? raw.restrictions.slice(0, 200) : '',
     budget: oneOf(raw.budget, ['low', 'medium', 'high'] as const, DEFAULT_PROFILE.budget),
     meals: 4,
+    proteinSupplement: (() => {
+      const source = isRecord(raw.proteinSupplement) ? raw.proteinSupplement : {}
+      const fallback = DEFAULT_PROFILE.proteinSupplement
+      return {
+        enabled: source.enabled === true,
+        type: oneOf(source.type, ['whey_concentrate', 'whey_isolate', 'vegan', 'other'] as const, fallback.type),
+        servingG: finite(source.servingG, fallback.servingG, 10, 100),
+        calories: finite(source.calories, fallback.calories, 20, 500),
+        protein: finite(source.protein, fallback.protein, 0, 100),
+        fat: finite(source.fat, fallback.fat, 0, 50),
+        carbs: finite(source.carbs, fallback.carbs, 0, 50),
+      }
+    })(),
   }
 }
 
@@ -101,7 +115,7 @@ export function getMealVariant() {
 }
 export const saveMealVariant = (value: number) => write(keys.meals, Number.isFinite(value) ? Math.abs(Math.trunc(value)) % 1000 : 0)
 
-const foodCategories: AvailableFoodCategory[] = ['protein', 'carbs', 'vegetables', 'fruits', 'fats', 'dairy', 'mixed', 'other']
+const foodCategories: AvailableFoodCategory[] = ['protein', 'carbs', 'vegetables', 'fruits', 'fats', 'dairy', 'mixed', 'supplement', 'other']
 export function getAvailableFoods(): AvailableFood[] {
   const raw = readUnknown(keys.availableFoods)
   if (!Array.isArray(raw)) return []
@@ -117,3 +131,61 @@ export function getAvailableFoods(): AvailableFood[] {
   return result.filter(food => food.name).slice(0, 50)
 }
 export const saveAvailableFoods = (foods: AvailableFood[]) => write(keys.availableFoods, foods.slice(0, 50))
+
+const customFoodCategories: FoodCategory[] = ['protein', 'carbs', 'fats', 'vegetables', 'fruits', 'dairy', 'mixed', 'supplement']
+const foodUnits: FoodUnit[] = ['g', 'piece', 'dry_g', 'cooked_g']
+const optionalFinite = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : undefined
+
+function sanitizeCustomFood(value: unknown): CustomFood | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id.startsWith('custom-') || typeof value.name !== 'string' || !value.name.trim()) return null
+  const category = oneOf(value.category, customFoodCategories, 'mixed')
+  const unit = oneOf(value.unit, foodUnits, 'g')
+  return {
+    id: value.id.slice(0, 100),
+    name: value.name.trim().slice(0, 80),
+    category,
+    caloriesPer100g: finite(value.caloriesPer100g, 0, 0, 1500),
+    proteinPer100g: finite(value.proteinPer100g, 0, 0, 100),
+    fatPer100g: finite(value.fatPer100g, 0, 0, 100),
+    carbsPer100g: finite(value.carbsPer100g, 0, 0, 100),
+    fiberPer100g: optionalFinite(value.fiberPer100g, 0, 100),
+    defaultServingG: finite(value.defaultServingG, 100, 1, 5000),
+    unit,
+  }
+}
+
+export function getCustomFoods(): CustomFood[] {
+  const raw = readUnknown(keys.customFoods)
+  if (!Array.isArray(raw)) return []
+  const result: CustomFood[] = []
+  raw.forEach(item => {
+    const food = sanitizeCustomFood(item)
+    if (food && !result.some(existing => existing.id === food.id)) result.push(food)
+  })
+  return result.slice(0, 100)
+}
+
+export const getAllFoods = (): FoodItem[] => [...FOOD_DATABASE, ...getCustomFoods().map(customFoodToFoodItem)]
+
+export const saveCustomFoods = (foods: CustomFood[]) => write(keys.customFoods, foods.map(sanitizeCustomFood).filter((food): food is CustomFood => Boolean(food)).slice(0, 100))
+
+const createCustomFoodId = () => `custom-${typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
+
+export function addCustomFood(draft: CustomFoodDraft): CustomFood {
+  const food = sanitizeCustomFood({ ...draft, id: createCustomFoodId() })
+  if (!food) throw new Error('Некоректні дані продукту')
+  saveCustomFoods([...getCustomFoods(), food])
+  return food
+}
+
+export function updateCustomFood(food: CustomFood): CustomFood | null {
+  const sanitized = sanitizeCustomFood(food)
+  if (!sanitized || !getCustomFoods().some(item => item.id === sanitized.id)) return null
+  saveCustomFoods(getCustomFoods().map(item => item.id === sanitized.id ? sanitized : item))
+  return sanitized
+}
+
+export function deleteCustomFood(id: string) {
+  if (!id.startsWith('custom-')) return
+  saveCustomFoods(getCustomFoods().filter(food => food.id !== id))
+}

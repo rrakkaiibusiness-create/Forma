@@ -1,4 +1,5 @@
-import type { FoodCategory, FoodUnit, MealFoodEntry } from './types'
+import type { CustomFood, FoodCategory, FoodUnit, MealFoodEntry, ProteinSupplement } from './types'
+import { proteinTypeLabels } from './constants'
 
 export type { FoodCategory, FoodUnit, MealFoodEntry }
 
@@ -18,6 +19,26 @@ export type FoodItem = {
 }
 
 export type MacroTotals = { calories: number; protein: number; fat: number; carbs: number; fiber: number }
+export const PROTEIN_SUPPLEMENT_ID = 'user_protein_supplement'
+
+export function createProteinSupplementFood(supplement: ProteinSupplement): FoodItem {
+  const servingG = Math.max(1, supplement.servingG)
+  const per100 = (value: number) => Math.max(0, value) * 100 / servingG
+  return {
+    id: PROTEIN_SUPPLEMENT_ID,
+    name: proteinTypeLabels[supplement.type],
+    category: 'protein',
+    unit: 'g',
+    caloriesPer100g: per100(supplement.calories),
+    proteinPer100g: per100(supplement.protein),
+    fatPer100g: per100(supplement.fat),
+    carbsPer100g: per100(supplement.carbs),
+    fiberPer100g: 0,
+    defaultServingG: servingG,
+    source: 'Етикетка протеїну з профілю користувача',
+    note: 'Добавка до раціону, а не заміна повноцінного прийому їжі.',
+  }
+}
 
 export const FOOD_DATABASE: FoodItem[] = [
   { id: 'chicken_breast_cooked', name: 'Куряча грудка готова', category: 'protein', unit: 'cooked_g', caloriesPer100g: 165, proteinPer100g: 31, fatPer100g: 3.6, carbsPer100g: 0, fiberPer100g: 0, defaultServingG: 150, source: 'USDA FoodData Central, chicken breast cooked roasted, FDC ID 171477', note: 'Готова вага без шкіри. Не плутати із сирою вагою.' },
@@ -53,9 +74,12 @@ export const FOOD_DATABASE: FoodItem[] = [
   { id: 'avocado_raw', name: 'Авокадо', category: 'fats', unit: 'g', caloriesPer100g: 160, proteinPer100g: 2, fatPer100g: 14.7, carbsPer100g: 8.5, fiberPer100g: 6.7, defaultServingG: 70, source: 'USDA FoodData Central / SR Legacy, avocados raw all commercial varieties' },
 ]
 
-export const getFoodItem = (foodId: string) => FOOD_DATABASE.find(food => food.id === foodId)
+export const customFoodToFoodItem = (food: CustomFood): FoodItem => ({ ...food, source: 'Етикетка користувача' })
+export const getAllFoods = (customFoods: CustomFood[] = []): FoodItem[] => [...FOOD_DATABASE, ...customFoods.map(customFoodToFoodItem)]
+export const getFoodItem = (foodId: string, customFoods: CustomFood[] = []) => getAllFoods(customFoods).find(food => food.id === foodId)
+export const resolveFoodItem = (foodId: string, extraFoods: FoodItem[] = []) => extraFoods.find(food => food.id === foodId) ?? getFoodItem(foodId)
 
-export function calculateFoodMacros(food: FoodItem, amountG: number): MacroTotals {
+export function calculateFoodMacros(food: FoodItem | CustomFood, amountG: number): MacroTotals {
   const factor = Math.max(0, Number.isFinite(amountG) ? amountG : 0) / 100
   return { calories: food.caloriesPer100g * factor, protein: food.proteinPer100g * factor, fat: food.fatPer100g * factor, carbs: food.carbsPer100g * factor, fiber: (food.fiberPer100g ?? 0) * factor }
 }
@@ -63,15 +87,15 @@ export function calculateFoodMacros(food: FoodItem, amountG: number): MacroTotal
 const emptyMacros = (): MacroTotals => ({ calories: 0, protein: 0, fat: 0, carbs: 0, fiber: 0 })
 const addMacros = (total: MacroTotals, value: MacroTotals): MacroTotals => ({ calories: total.calories + value.calories, protein: total.protein + value.protein, fat: total.fat + value.fat, carbs: total.carbs + value.carbs, fiber: total.fiber + value.fiber })
 
-export function calculateMealMacros(items: MealFoodEntry[]) {
+export function calculateMealMacros(items: MealFoodEntry[], extraFoods: FoodItem[] = []) {
   return items.reduce((total, item) => {
-    const food = getFoodItem(item.foodId)
+    const food = resolveFoodItem(item.foodId, extraFoods)
     return food ? addMacros(total, calculateFoodMacros(food, item.amountG)) : total
   }, emptyMacros())
 }
 
-export function calculateDayMacros(meals: { items: MealFoodEntry[] }[]) {
-  return meals.reduce((total, meal) => addMacros(total, calculateMealMacros(meal.items)), emptyMacros())
+export function calculateDayMacros(meals: { items: MealFoodEntry[] }[], extraFoods: FoodItem[] = []) {
+  return meals.reduce((total, meal) => addMacros(total, calculateMealMacros(meal.items, extraFoods)), emptyMacros())
 }
 
 export function validateMacroConsistency(macros: Pick<MacroTotals, 'calories' | 'protein' | 'fat' | 'carbs'>) {
